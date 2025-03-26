@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+import os
+import platform
+import psutil
+import shutil
+import subprocess
+import time
+from datetime import timedelta
+
+def get_cpu_name():
+    try:
+        cpu_name = subprocess.getoutput("lscpu | grep 'Model name' | cut -d ':' -f2").strip()
+        if not cpu_name:
+            cpu_name = subprocess.getoutput("cat /proc/cpuinfo | grep 'model name' | uniq | cut -d ':' -f2").strip()
+        return cpu_name
+    except:
+        return "Unknown CPU"
+
+def get_system_info():
+    os_name = platform.system()
+    os_version = platform.version()
+    kernel = platform.release()
+    uptime = timedelta(seconds=int(time.time() - psutil.boot_time()))
+
+    package_count = "N/A"
+    if os.path.exists("/usr/bin/dpkg"):  # Debian-based
+        package_count = subprocess.getoutput("dpkg --list | wc -l").strip()
+    elif os.path.exists("/usr/bin/pacman"):  # Arch-based
+        package_count = subprocess.getoutput("pacman -Q | wc -l").strip()
+
+    cpu_name = get_cpu_name()
+    cpu_cores = psutil.cpu_count(logical=False)  # Physical cores
+    cpu_threads = psutil.cpu_count(logical=True)  # Logical cores
+
+    memory = psutil.virtual_memory()
+    memory_usage = f"{memory.used // 1024**2}MiB / {memory.total // 1024**2}MiB"
+
+    gpu_info = subprocess.getoutput("lspci | grep -i 'vga\\|3d\\|display' | cut -d ':' -f3").strip() or "N/A"
+
+    disk = psutil.disk_usage('/')
+    disk_usage = f"{disk.used // 1024**3}GB / {disk.total // 1024**3}GB"
+
+    return {
+        "User": f"{os.getenv('USER')}@{platform.node()}",
+        "OS": f"{os_name} {os_version}",
+        "Kernel": kernel,
+        "Uptime": str(uptime),
+        "Packages": package_count,
+        "Shell": os.getenv("SHELL", "Unknown"),
+        "Terminal": os.getenv("TERM", "Unknown"),
+        "CPU": f"{cpu_name} ({cpu_cores} cores, {cpu_threads} threads)",
+        "GPU": gpu_info,
+        "Memory": memory_usage,
+        "Disk Space": disk_usage
+    }
+
+def display_info():
+    info = get_system_info()
+    width = shutil.get_terminal_size((80, 20)).columns
+
+    ascii_art = """
+        .-"""""""-.
+      .'           '.
+     /    O     O    \\
+    :                 :
+    |      \\___/      |
+    :                 :
+     \\               /
+      '.           .'
+        '-.......-'
+    """
+
+    print(ascii_art)
+    print(f" \033[1;36m{info['User']}\033[0m")
+    print(f" \033[1;37m{'-' * (len(info['User']) + 2)}\033[0m")
+
+    for key, value in info.items():
+        if key != "User":
+            print(f" \033[1;32m{key}:\033[0m {value}")
+
+    print("-" * width)
+
+if __name__ == "__main__":
+    display_info()
